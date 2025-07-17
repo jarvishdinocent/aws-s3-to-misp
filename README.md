@@ -40,6 +40,6 @@ python3 s3_to_misp.py
 
 crontab -e
 
-6. **Add the following line to run the script daily at 6 AM**:
+6. Add the following line to run the script daily at 6 AM:
 
 0 6 * * * /path/to/venv/bin/python /path/to/s3_to_misp.py
