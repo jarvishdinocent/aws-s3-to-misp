@@ -25,18 +25,18 @@ This script automates the ingestion of daily threat feed data stored in AWS S3 b
 git clone https://github.com/yourusername/aws-s3-misp-ingestor.git
 cd aws-s3-misp-ingestor
 
-2. **Install required dependencies**:
+2. Install required dependencies:
 pip install -r requirements.txt
 
-3. **Make the script executable**:
+3. Make the script executable:
 
 chmod +x s3_to_misp.py
 
-4. **Run the script manually**:
+4. Run the script manually:
 
 python3 s3_to_misp.py
 
-5.**Cron Setup (Optional)**:
+5.Cron Setup (Optional):
 
 crontab -e
 
