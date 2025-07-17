@@ -1,0 +1,5 @@
+boto3==1.39.7
+pymisp==2.5.10
+urllib3==2.4.0
+requests==2.32.3
+python-dateutil==2.9.0.post0
