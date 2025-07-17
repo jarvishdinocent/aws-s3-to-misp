@@ -22,7 +22,7 @@ This script automates the ingestion of daily threat feed data stored in AWS S3 b
 1. **Clone or copy this repository**:
 
 ```bash
-git clone https://github.com/yourusername/aws-s3-misp-ingestor.git
+git clone https://github.com/jarvishdinocent/aws-s3-misp-ingestor.git
 cd aws-s3-misp-ingestor
 
 2. Install required dependencies:
