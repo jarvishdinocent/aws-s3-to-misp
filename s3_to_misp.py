@@ -25,30 +25,32 @@ misp_url = 'YOUR_MISP_URL'
 misp_key = 'YOUR_MISP_API_KEY'
 misp_verifycert = False
 
-# Optional tags to help context
 event_tags = ["source:aws-s3-script", "daily-threat-feed", "format:csv"]
 
 if not misp_verifycert:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     warnings.filterwarnings("ignore", category=UserWarning)
 
-# MISP Setup
+# Initialize MISP
 misp = PyMISP(misp_url, misp_key, misp_verifycert)
 event = MISPEvent()
 event.info = f"Daily S3 Threat Feed - {datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
-event.distribution = 1  # Community only
-event.threat_level_id = 2  # Medium
-event.analysis = 0  # Initial analysis
+event.distribution = 1
+event.threat_level_id = 2
+event.analysis = 0
 event = misp.add_event(event)
 
-# Add tags to event
+# Add tags
 for tag in event_tags:
     try:
         misp.tag(event["Event"]["uuid"], tag)
     except Exception as e:
         print(f"⚠️ Failed to tag event with '{tag}': {e}")
 
-# AWS Client
+# Fetch existing attributes to deduplicate
+existing_values = {attr['value'] for attr in event['Attribute']} if 'Attribute' in event else set()
+
+# AWS client
 s3 = boto3.client(
     's3',
     region_name=aws_region,
@@ -56,8 +58,7 @@ s3 = boto3.client(
     aws_secret_access_key=aws_secret_access_key
 )
 
-def fetch_and_parse_csv(bucket, key):
-    seen = set()
+def fetch_and_parse_csv(bucket, key, seen):
     try:
         print(f"📥 Downloading {key} from {bucket}")
         obj = s3.get_object(Bucket=bucket, Key=key)
@@ -69,12 +70,12 @@ def fetch_and_parse_csv(bucket, key):
             content = obj['Body'].read().decode('utf-8')
 
         csv_reader = csv.reader(io.StringIO(content))
-        headers = next(csv_reader, None)
+        headers = next(csv_reader, None)  # Skip header
 
         for row in csv_reader:
             for col in row:
                 val = col.strip()
-                if not val or val in seen:
+                if not val or val in seen or val in existing_values:
                     continue
                 seen.add(val)
 
@@ -88,13 +89,17 @@ def fetch_and_parse_csv(bucket, key):
                     err_msg = str(e)
                     if "already exists" in err_msg or "Value cannot be empty" in err_msg:
                         print(f"⚠️ Skipped duplicate or empty: {val}")
+                    elif "403" in err_msg:
+                        print(f"⚠️ MISP 403 - Attribute exists or forbidden: {val}")
                     else:
                         print(f"❌ Error adding {val}: {err_msg}")
 
     except Exception as e:
         print(f"❌ Failed to process object {key} from {bucket}: {e}")
 
-# Fetch and Process Files from S3
+# Fetch and process files
+seen_values = set()
+
 for bucket in s3_buckets:
     print(f"🔍 Scanning bucket: {bucket}")
     try:
@@ -103,7 +108,7 @@ for bucket in s3_buckets:
             for obj in response['Contents']:
                 key = obj['Key']
                 if key.endswith('.csv') or key.endswith('.csv.gz'):
-                    fetch_and_parse_csv(bucket, key)
+                    fetch_and_parse_csv(bucket, key, seen_values)
         else:
             print(f"⚠️ No files found in {bucket}/{log_prefix}")
     except s3.exceptions.NoSuchBucket:
@@ -111,9 +116,9 @@ for bucket in s3_buckets:
     except Exception as e:
         print(f"❌ Failed to list objects in bucket {bucket}: {e}")
 
-# Publish the event at the end
+# Publish event
 try:
     misp.publish(event)
-    print("✅ Event published successfully.")
+    print("✅ MISP event published successfully.")
 except Exception as e:
     print(f"❌ Failed to publish event: {e}")
